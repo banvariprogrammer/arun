@@ -1,0 +1,186 @@
+
+Step 1
+Add below code in page.xml file inside the <block type="core/text_list" name="right" as="right" translate="label"> 
+<block type="checkout/cart_sidebar" name="cart_sidebar" template="checkout/cart/sidebar.phtml"/>
+
+Step 2
+
+call below code in app\design\frontend\rwd\default\template\catalog\product\compare\sidebar.phtml file
+<?php echo $this->getChildHtml('topcart'); ?>
+
+Note: these above two steps used for call minicart on right sidebar.
+
+Now next steps for add to cart using ajax and update right sidebar minicart.
+
+Step3: On Product Page
+
+Next we need to make changes in product page, so that instead of form submit an ajax request is fired. To do this open the catalog/product/view.phtml file in your theme.
+
+In this file you will find the javascript code as 
+
+productAddToCartForm.submit = function(button, url) {
+           if (this.validator.validate()) {
+               var form = this.form;
+               var oldUrl = form.action;
+ 
+               if (url) {
+                  form.action = url;
+               }
+               var e = null;
+               try {
+                   this.form.submit();
+               } catch (e) {
+               }
+               this.form.action = oldUrl;
+               if (e) {
+                   throw e;
+               }
+ 
+               if (button && button != 'undefined') {
+                   button.disabled = true;
+               }
+           }
+       }.bind(productAddToCartForm);
+	   
+	   
+   change this code to
+   
+
+   var productAddToCartForm = new VarienForm('product_addtocart_form');
+            productAddToCartForm.submit = function(button, url) {
+                if (this.validator.validate()) {
+                    var form = this.form;
+                    var oldUrl = form.action;
+
+                    if (url) {
+                       form.action = url;
+                    }
+                    var e = null;
+					
+				//Start of our new ajax code
+                if(!url){
+                    url = jQuery('#product_addtocart_form').attr('action');
+                }
+                var data = jQuery('#product_addtocart_form').serialize();
+                data += '&isAjax=1';   
+                jQuery('#ajax_loader').show();
+				button.disabled = true;
+                try {
+                    					
+					jQuery.ajax({
+                          url: url,
+                          dataType: 'json',
+                          type : 'post',
+                          data: data,
+                          success: function(data){
+                                jQuery('#ajax_loader').hide();
+								button.disabled = false;
+                                    jQuery('.block-cart').html(data.sidebar);
+                                
+                          }
+                    });
+					
+                } catch (e) {
+                }
+				//End of our new ajax code
+					
+                    this.form.action = oldUrl;
+                    if (e) {
+                        throw e;
+                    }
+                    
+                }
+            }.bind(productAddToCartForm);
+			
+			
+Next to do a little bit of styling go to phtml file catalog/product/view/addtocart.phtml
+and then find this code there
+
+		<button type="button" title="<?php echo $buttonTitle ?>" class="button btn-cart" onclick="productAddToCartForm.submit(this)"><span><span><?php echo $buttonTitle ?></span></span></button>
+
+change this to
+
+		<button type="button" title="<?php echo $buttonTitle ?>" class="button btn-cart" onclick="productAddToCartForm.submit(this)"><span><span><?php echo $buttonTitle ?></span></span></button>
+		<span id='ajax_loader' style='display:none'><img src='<?php echo $this->getSkinUrl('images/opc-ajax-loader.gif')?>'/></span>
+		
+		
+		
+Step4: Add to cart Controller
+
+Next, we need to change the code at CartController.php in the addAction. Right now, we will directly change the core file, but later will show you how do this using magento best practices.
+Open the class Mage_Checkout_CartController located at app\code\core\Mage\Checkout\controllers\CartController.php and find the addAction() function. In the addAction() you have the code,
+
+	$params = $this->getRequest()->getParams();
+	
+Just after this line replace by below code:
+	
+	
+	if($params['isAjax'] == 1){
+            $response = array();
+            try {
+                if (isset($params['qty'])) {
+                    $filter = new Zend_Filter_LocalizedToNormalized(
+                    array('locale' => Mage::app()->getLocale()->getLocaleCode())
+                    );
+                    $params['qty'] = $filter->filter($params['qty']);
+                }
+ 
+                $product = $this->_initProduct();
+                $related = $this->getRequest()->getParam('related_product');
+ 
+                /**
+                 * Check product availability
+                 */
+                if (!$product) {
+                    $response['status'] = 'ERROR';
+                    $response['message'] = $this->__('Unable to find Product ID');
+                }
+ 
+                $cart->addProduct($product, $params);
+                if (!empty($related)) {
+                    $cart->addProductsByIds(explode(',', $related));
+                }
+ 
+                $cart->save();
+ 
+                $this->_getSession()->setCartWasUpdated(true);
+ 
+                /**
+                 * @todo remove wishlist observer processAddToCart
+                 */
+                Mage::dispatchEvent('checkout_cart_add_product_complete',
+                array('product' => $product, 'request' => $this->getRequest(), 'response' => $this->getResponse())
+                );
+ 
+                if (!$this->_getSession()->getNoCartRedirect(true)) {
+                    if (!$cart->getQuote()->getHasError()){
+                        $message = $this->__('%s was added to your shopping cart.', Mage::helper('core')->htmlEscape($product->getName()));
+                        $response['status'] = 'SUCCESS';
+                        $response['message'] = $message;
+//New Code Here
+                        $this->loadLayout();
+                        $sidebar = $this->getLayout()->getBlock('cart_sidebar')->toHtml();
+                        $response['sidebar'] = $sidebar;
+                    }
+                }
+            } catch (Mage_Core_Exception $e) {
+                $msg = "";
+                if ($this->_getSession()->getUseNotice(true)) {
+                    $msg = $e->getMessage();
+                } else {
+                    $messages = array_unique(explode("\n", $e->getMessage()));
+                    foreach ($messages as $message) {
+                        $msg .= $message.'<br/>';
+                    }
+                }
+ 
+                $response['status'] = 'ERROR';
+                $response['message'] = $msg;
+            } catch (Exception $e) {
+                $response['status'] = 'ERROR';
+                $response['message'] = $this->__('Cannot add the item to shopping cart.');
+                Mage::logException($e);
+            }
+            $this->getResponse()->setBody(Mage::helper('core')->jsonEncode($response));
+            return;
+        }
