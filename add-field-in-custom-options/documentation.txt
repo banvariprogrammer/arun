@@ -1,0 +1,4 @@
+create a new field "imgname" in catalog_product_option_type_value table
+
+app\design\adminhtml\default\default\template\catalog\product\edit\options\type\select.phtml
+C:\xampp\htdocs\magento-test\app\code\core\Mage\Adminhtml\Block\Catalog\Product\Edit\Tab\Options\Option.php
