@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../../Magento/Backend/etc/menu.xsd">
+    <menu>
+        <add id="Ambab_BankDiscount::parent" title="Bank Discount Details" module="Ambab_BankDiscount" sortOrder="100" resource="Ambab_BankDiscount::parent"/>
+		<add id="Ambab_BankDiscount::bankdiscount" title="Bank Bin Details" module="Ambab_BankDiscount" sortOrder="20" parent="Ambab_BankDiscount::parent" action="bankdiscount/bankdiscount" resource="Ambab_BankDiscount::bankdiscount"/>
+    </menu>
+</config>
